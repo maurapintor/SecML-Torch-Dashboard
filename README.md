@@ -2,6 +2,9 @@
 
 A web-based dashboard for evaluating the adversarial robustness of PyTorch models. It runs PGD attacks across a range of perturbation magnitudes and plots the security evaluation curve (robust accuracy vs. ε) in real time.
 
+> [!WARNING]
+> Models are loaded via `torch.hub.load(..., trust_repo=True)`. Only point this tool at hub repos you trust.
+
 ## Requirements
 
 - Python 3.9+
