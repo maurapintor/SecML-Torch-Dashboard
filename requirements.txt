@@ -1,0 +1,7 @@
+fastapi
+uvicorn[standard]
+torch
+torchvision
+secml-torch[foolbox,adv_lib]
+numpy
+foolbox
