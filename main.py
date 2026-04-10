@@ -32,10 +32,10 @@ class EvalParams(BaseModel):
     num_samples: int = 20
     perturbation_model: str = "linf"
     epsilon_min: float = 0.0
-    epsilon_max: float = 0.1
+    epsilon_max: float = 0.05
     epsilon_steps: int = 10
     num_steps: int = 20
-    step_size: float = 0.01
+    step_size: float = 0.015
     backend: str = "native"
 
     @field_validator("model_id")
@@ -55,8 +55,8 @@ class EvalParams(BaseModel):
     @field_validator("perturbation_model")
     @classmethod
     def validate_norm(cls, v: str) -> str:
-        if v not in ("l1", "l2", "linf"):
-            raise ValueError("perturbation_model must be 'l1', 'l2', or 'linf'")
+        if v not in ("l2", "linf"):
+            raise ValueError("perturbation_model must be 'l2' or 'linf'")
         return v
 
     @field_validator("epsilon_steps")
@@ -74,7 +74,7 @@ class VisualizeParams(BaseModel):
     epsilon_max: float = 0.1
     epsilon_steps: int = 10
     num_steps: int = 20
-    step_size: float = 0.01
+    step_size: float = 0.015
 
     @field_validator("model_id")
     @classmethod
@@ -86,8 +86,8 @@ class VisualizeParams(BaseModel):
     @field_validator("perturbation_model")
     @classmethod
     def validate_norm(cls, v: str) -> str:
-        if v not in ("l1", "l2", "linf"):
-            raise ValueError("perturbation_model must be 'l1', 'l2', or 'linf'")
+        if v not in ("l2", "linf"):
+            raise ValueError("perturbation_model must be 'l2' or 'linf'")
         return v
 
 

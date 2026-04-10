@@ -107,9 +107,6 @@
                 <label class="flex items-center gap-1.5 text-sm text-gray-700 cursor-pointer">
                   <input type="radio" name="norm" value="l2" class="accent-indigo-600"> L2
                 </label>
-                <label class="flex items-center gap-1.5 text-sm text-gray-700 cursor-pointer">
-                  <input type="radio" name="norm" value="l1" class="accent-indigo-600"> L1
-                </label>
               </div>
             </div>
 
@@ -122,7 +119,7 @@
                 </div>
                 <div>
                   <p class="text-xs text-gray-400 mb-1">max</p>
-                  <input id="epsilon_max" type="number" class="input" value="0.03" min="0" step="0.001">
+                  <input id="epsilon_max" type="number" class="input" value="0.05" min="0" step="0.001">
                 </div>
                 <div>
                   <p class="text-xs text-gray-400 mb-1">steps</p>
@@ -138,7 +135,7 @@
               </div>
               <div class="field">
                 <label>Step Size</label>
-                <input id="step_size" type="number" class="input" value="0.01" min="0" step="0.001">
+                <input id="step_size" type="number" class="input" value="0.015" min="0" step="0.001">
               </div>
             </div>
           </div>
@@ -405,7 +402,7 @@
       doc.setFontSize(8); doc.setFont('helvetica', 'bold'); doc.setTextColor(100, 100, 100);
       doc.text('CONFIGURATION', margin, y); y += 3;
       const normVal = document.querySelector('input[name="norm"]:checked').value;
-      const normLabel = normVal === 'linf' ? 'L\u221e' : normVal === 'l2' ? 'L2' : 'L1';
+      const normLabel = normVal === 'linf' ? 'L\u221e' : 'L2';
       const configRows = [
         ['Model', selectedModel ? selectedModel.label : ''],
         ['Source', selectedModel ? (selectedModel.source === 'robustbench' ? 'RobustBench' : 'PyTorch Hub') : ''],
