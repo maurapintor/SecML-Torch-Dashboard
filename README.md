@@ -45,9 +45,8 @@ Choose a pre-configured model from the dropdown. Available models:
 | CIFAR-10 · ResNet-56 | PyTorch Hub (`chenyaofo/pytorch-cifar-models`) | CIFAR-10 |
 | CIFAR-10 · VGG-11 BN | PyTorch Hub (`chenyaofo/pytorch-cifar-models`) | CIFAR-10 |
 | CIFAR-10 · MobileNetV2-x0.5 | PyTorch Hub (`chenyaofo/pytorch-cifar-models`) | CIFAR-10 |
-| CIFAR-10 · ResNet-50 Linf — Wong 2020 | RobustBench | CIFAR-10 |
-| CIFAR-10 · ResNet-18 Linf — Rice 2020 | RobustBench | CIFAR-10 |
-| CIFAR-10 · WRN-28-10 Linf — Hendrycks 2019 | RobustBench | CIFAR-10 |
+| CIFAR-10 · PreActResNet-18 Linf — Wong 2020 | RobustBench | CIFAR-10 |
+| CIFAR-10 · PreActResNet-18 Linf — Rice 2020 | RobustBench | CIFAR-10 |
 
 RobustBench models are downloaded and cached in `./models/` on first use.
 

@@ -82,9 +82,9 @@ PRECONFIGURED_MODELS = [
         "normalize": False,
     },
     # ── RobustBench ──────────────────────────────────────────────────────────
-{
+    {
         "id": "rb_cifar10_Wong2020",
-        "label": "CIFAR-10 · ResNet-50 L\u221e \u2014 Wong 2020 (RobustBench)",
+        "label": "CIFAR-10 · PreActResNet-18 L\u221e \u2014 Wong 2020 (RobustBench)",
         "source": "robustbench",
         "model_name": "Wong2020Fast",
         "dataset": "cifar10",
@@ -93,18 +93,9 @@ PRECONFIGURED_MODELS = [
     },
     {
         "id": "rb_cifar10_Rice2020",
-        "label": "CIFAR-10 · ResNet-18 L\u221e \u2014 Rice 2020 (RobustBench)",
+        "label": "CIFAR-10 · PreActResNet-18 L\u221e \u2014 Rice 2020 (RobustBench)",
         "source": "robustbench",
         "model_name": "Rice2020Overfitting",
-        "dataset": "cifar10",
-        "threat_model": "Linf",
-        "normalize": False,
-    },
-    {
-        "id": "rb_cifar10_Hendrycks2019",
-        "label": "CIFAR-10 · WRN-28-10 L\u221e \u2014 Hendrycks 2019 (RobustBench)",
-        "source": "robustbench",
-        "model_name": "Hendrycks2019Using",
         "dataset": "cifar10",
         "threat_model": "Linf",
         "normalize": False,
