@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SecML-Torch · Visualizer</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', system-ui, sans-serif; }
+    input[type=number]::-webkit-inner-spin-button { opacity: 0.3; }
+    .field label { display: block; font-size: 0.75rem; font-weight: 500; color: #6b7280; margin-bottom: 0.25rem; }
+    .input {
+      width: 100%; background: white; border: 1px solid #e5e7eb;
+      border-radius: 6px; padding: 0.375rem 0.625rem; font-size: 0.875rem;
+      color: #111827; outline: none; transition: border-color 0.15s;
+    }
+    .input:focus { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,0.1); }
+    .section-label {
+      font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.06em;
+      text-transform: uppercase; color: #9ca3af; margin-bottom: 0.75rem;
+    }
+    .card { background: white; border: 1px solid #f3f4f6; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+    .nav-link { padding: 0.375rem 0.75rem; font-size: 0.875rem; border-radius: 0.5rem; transition: all 0.15s; }
+    .nav-link-active { color: #4f46e5; background: #eef2ff; font-weight: 500; }
+    .nav-link-idle { color: #6b7280; }
+    .nav-link-idle:hover { color: #111827; background: #f3f4f6; }
+    /* pixelated upscaling for CIFAR-10 style images */
+    .img-pixel { image-rendering: pixelated; image-rendering: crisp-edges; }
+    /* gallery thumb border transition */
+    .thumb-wrap { transition: box-shadow 0.12s, border-color 0.12s; }
+    /* slider */
+    input[type=range] { -webkit-appearance: none; appearance: none; height: 6px; border-radius: 3px; background: #e5e7eb; outline: none; }
+    input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: #6366f1; cursor: pointer; border: 2px solid white; box-shadow: 0 1px 4px rgba(0,0,0,0.2); }
+    input[type=range]:disabled::-webkit-slider-thumb { background: #d1d5db; }
+  </style>
+</head>
+<body class="bg-slate-50 text-gray-800 h-screen flex flex-col overflow-hidden">
+
+  <!-- Header -->
+  <header class="bg-white border-b border-gray-200 px-6 py-3 flex items-center gap-3 shrink-0">
+    <div class="w-7 h-7 bg-indigo-600 rounded-lg flex items-center justify-center">
+      <svg class="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+      </svg>
+    </div>
+    <span class="font-semibold text-gray-900 text-sm">SecML-Torch</span>
+    <nav class="flex gap-1 ml-4">
+      <a href="/" class="nav-link nav-link-idle">Evaluation</a>
+      <a href="/visualize" class="nav-link nav-link-active">Visualizer</a>
+    </nav>
+  </header>
+
+  <div class="flex flex-1 overflow-hidden">
+
+    <!-- Sidebar -->
+    <aside class="bg-white border-r border-gray-200 flex flex-col overflow-y-auto shrink-0" style="width:268px">
+      <div class="p-5 space-y-5 flex-1">
+
+        <!-- Model -->
+        <div>
+          <p class="section-label">Model</p>
+          <div class="field">
+            <label>Select Model</label>
+            <select id="model_select" class="input" onchange="onModelChange()">
+              <option value="">Loading…</option>
+            </select>
+          </div>
+          <p id="model_info" class="text-xs text-gray-400 mt-2 leading-relaxed"></p>
+        </div>
+
+        <hr class="border-gray-100">
+
+        <!-- Attack params -->
+        <div>
+          <p class="section-label">Attack — PGD</p>
+          <div class="space-y-3">
+            <div class="field">
+              <label>Perturbation Norm</label>
+              <div class="flex gap-4 mt-1">
+                <label class="flex items-center gap-1.5 text-sm text-gray-700 cursor-pointer">
+                  <input type="radio" name="norm" value="linf" checked class="accent-indigo-600"> L&#x221e;
+                </label>
+                <label class="flex items-center gap-1.5 text-sm text-gray-700 cursor-pointer">
+                  <input type="radio" name="norm" value="l2" class="accent-indigo-600"> L2
+                </label>
+                <label class="flex items-center gap-1.5 text-sm text-gray-700 cursor-pointer">
+                  <input type="radio" name="norm" value="l1" class="accent-indigo-600"> L1
+                </label>
+              </div>
+            </div>
+            <div class="field">
+              <label>Max Epsilon (&#x3b5;)</label>
+              <input id="epsilon_max" type="number" class="input" value="0.1" min="0.001" step="0.01">
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <div class="field">
+                <label>&#x3b5; Steps</label>
+                <input id="epsilon_steps" type="number" class="input" value="12" min="2" max="30">
+              </div>
+              <div class="field">
+                <label>PGD Iters</label>
+                <input id="num_steps" type="number" class="input" value="20" min="1" max="200">
+              </div>
+            </div>
+            <div class="field">
+              <label>Step Size</label>
+              <input id="step_size" type="number" class="input" value="0.01" min="0.0001" step="0.001">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Run button -->
+      <div class="p-4 border-t border-gray-100 shrink-0">
+        <button id="run_btn" onclick="startVisualization()" disabled
+          class="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white font-semibold py-2.5 rounded-lg transition-colors text-sm">
+          Run Attack
+        </button>
+        <p id="run_hint" class="text-xs text-gray-400 text-center mt-2">Select an image to start</p>
+      </div>
+    </aside>
+
+    <!-- Main area -->
+    <main class="flex-1 overflow-y-auto p-6 flex flex-col gap-4">
+
+      <!-- Gallery -->
+      <div class="card p-5">
+        <div class="flex items-center justify-between mb-3">
+          <div>
+            <p class="text-sm font-semibold text-gray-700">Pick an Image</p>
+            <p class="text-xs text-gray-400">Click to select, then run the attack</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <button id="prev_btn" onclick="shiftGallery(-16)"
+              class="text-xs text-gray-500 hover:text-indigo-600 px-2.5 py-1 rounded-lg border border-gray-200 hover:border-indigo-300 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+              &#x2190; Prev
+            </button>
+            <span id="gallery_range" class="text-xs text-gray-400 tabular-nums w-14 text-center"></span>
+            <button id="next_btn" onclick="shiftGallery(16)"
+              class="text-xs text-gray-500 hover:text-indigo-600 px-2.5 py-1 rounded-lg border border-gray-200 hover:border-indigo-300 transition-colors">
+              Next &#x2192;
+            </button>
+          </div>
+        </div>
+        <div id="gallery" class="grid gap-2" style="grid-template-columns: repeat(8, 1fr);">
+          <div class="col-span-8 text-center py-8 text-sm text-gray-400">Loading images…</div>
+        </div>
+      </div>
+
+      <!-- Status -->
+      <div id="status_bar" class="hidden card px-4 py-3">
+        <div class="flex items-center justify-between mb-2">
+          <span id="status_msg" class="text-sm text-gray-600">Starting…</span>
+          <span id="status_pct" class="text-xs text-gray-400 tabular-nums"></span>
+        </div>
+        <div class="w-full bg-gray-100 rounded-full h-1.5">
+          <div id="progress_bar" class="h-1.5 rounded-full transition-all duration-300 bg-indigo-500" style="width:0%"></div>
+        </div>
+      </div>
+
+      <!-- Error -->
+      <div id="error_bar" class="hidden border border-red-200 bg-red-50 rounded-lg px-4 py-3">
+        <p class="text-sm font-semibold text-red-700">Error</p>
+        <pre id="error_msg" class="text-xs text-red-600 mt-1 whitespace-pre-wrap font-mono max-h-40 overflow-y-auto"></pre>
+      </div>
+
+      <!-- Results -->
+      <div id="results_panel" class="hidden card p-5">
+        <div class="grid gap-8" style="grid-template-columns: 1fr 1fr;">
+
+          <!-- Left: images + slider -->
+          <div>
+            <p class="text-sm font-semibold text-gray-700 mb-4">Perturbation Viewer</p>
+
+            <!-- Image pair -->
+            <div class="flex gap-5 justify-center items-end mb-5">
+              <div class="text-center">
+                <p class="text-xs text-gray-400 mb-2 font-medium">Original</p>
+                <div class="rounded-lg border-2 border-gray-200 overflow-hidden inline-block" style="width:160px; height:160px;">
+                  <img id="orig_img" class="img-pixel w-full h-full object-cover" alt="original">
+                </div>
+                <p id="orig_label" class="text-xs text-gray-500 mt-1.5"></p>
+              </div>
+              <div class="text-center">
+                <p class="text-xs text-gray-400 mb-2 font-medium">Perturbed</p>
+                <div class="rounded-lg border-2 overflow-hidden inline-block transition-colors" id="adv_border" style="width:160px; height:160px; border-color:#e5e7eb;">
+                  <img id="adv_img" class="img-pixel w-full h-full object-cover" alt="perturbed">
+                </div>
+                <p id="adv_label" class="text-xs font-semibold mt-1.5"></p>
+              </div>
+            </div>
+
+            <!-- Slider -->
+            <div class="space-y-2">
+              <div class="flex items-center justify-between">
+                <label class="text-xs text-gray-500 font-medium">Perturbation &#x3b5;</label>
+                <span id="eps_val" class="text-sm font-mono font-semibold text-indigo-600">0.0000</span>
+              </div>
+              <input id="eps_slider" type="range" min="0" max="0" value="0"
+                class="w-full disabled:opacity-50 disabled:cursor-not-allowed"
+                oninput="onSlider(this.value)" disabled>
+              <div class="flex justify-between text-xs text-gray-400">
+                <span>clean</span>
+                <span id="eps_max_label">max &#x3b5;</span>
+              </div>
+            </div>
+
+            <!-- Computing indicator -->
+            <div id="computing_bar" class="hidden mt-3 flex items-center gap-2 text-xs text-indigo-500">
+              <svg class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+              </svg>
+              Computing remaining epsilon values…
+            </div>
+          </div>
+
+          <!-- Right: prediction -->
+          <div>
+            <p class="text-sm font-semibold text-gray-700 mb-4">Model Prediction</p>
+
+            <!-- Badge -->
+            <div id="pred_badge" class="rounded-xl p-4 mb-5 bg-gray-50">
+              <div class="flex items-center justify-between">
+                <div>
+                  <p class="text-xs text-gray-400 mb-0.5">Predicted</p>
+                  <p id="pred_class" class="text-2xl font-bold text-gray-800">—</p>
+                </div>
+                <div class="text-right">
+                  <p class="text-xs text-gray-400 mb-0.5">Confidence</p>
+                  <p id="pred_conf" class="text-lg font-semibold text-gray-700">—</p>
+                </div>
+              </div>
+              <div id="pred_status" class="mt-2 text-xs font-medium"></div>
+            </div>
+
+            <!-- Probability bars -->
+            <p class="text-xs text-gray-400 uppercase tracking-wide font-semibold mb-2">All Class Probabilities</p>
+            <div id="prob_bars" class="space-y-1.5">
+              <!-- populated by JS -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+<script>
+  let models = [];
+  let selectedModel = null;
+  let galleryDataset = 'cifar10';
+  let galleryStart = 0;
+  let selectedImageIndex = null;
+  let frames = [];
+  let userDragged = false;
+  let activeEventSource = null;
+
+  // ── Init ──────────────────────────────────────────────────────────────────
+
+  async function init() {
+    const res = await fetch('/api/models');
+    models = await res.json();
+    const sel = document.getElementById('model_select');
+    sel.innerHTML = models.map(m =>
+      `<option value="${m.id}">${m.label}</option>`
+    ).join('');
+    onModelChange(false);  // don't reload gallery yet
+    await loadGallery();
+  }
+
+  // ── Model selection ───────────────────────────────────────────────────────
+
+  function onModelChange(reloadGallery = true) {
+    const id = document.getElementById('model_select').value;
+    selectedModel = models.find(m => m.id === id) || null;
+    if (!selectedModel) return;
+
+    const src = selectedModel.source === 'robustbench' ? 'RobustBench' : 'PyTorch Hub';
+    document.getElementById('model_info').textContent = `Source: ${src} · Dataset: ${selectedModel.dataset.toUpperCase()}`;
+
+    if (reloadGallery && selectedModel.dataset !== galleryDataset) {
+      galleryDataset = selectedModel.dataset;
+      galleryStart = 0;
+      selectedImageIndex = null;
+      updateRunButton();
+      loadGallery();
+    }
+  }
+
+  // ── Gallery ───────────────────────────────────────────────────────────────
+
+  async function loadGallery() {
+    const gallery = document.getElementById('gallery');
+    gallery.innerHTML = '<div class="col-span-8 text-center py-8 text-sm text-gray-400">Loading images\u2026</div>';
+
+    const dataset = selectedModel ? selectedModel.dataset : 'cifar10';
+    galleryDataset = dataset;
+
+    const res = await fetch(`/api/sample-images?dataset=${dataset}&count=16&start=${galleryStart}`);
+    const images = await res.json();
+
+    const end = galleryStart + images.length;
+    document.getElementById('gallery_range').textContent = `${galleryStart + 1}\u2013${end}`;
+    document.getElementById('prev_btn').disabled = galleryStart === 0;
+
+    gallery.innerHTML = '';
+    for (const img of images) {
+      const cell = document.createElement('div');
+      cell.className = 'thumb-wrap cursor-pointer rounded-lg border-2 border-transparent overflow-hidden bg-white hover:border-indigo-300 hover:shadow-sm';
+      cell.dataset.index = img.index;
+      if (img.index === selectedImageIndex) {
+        cell.className = cell.className.replace('border-transparent', 'border-indigo-500 shadow-md');
+      }
+
+      cell.innerHTML = `
+        <img src="data:image/png;base64,${img.image_b64}"
+             class="img-pixel w-full aspect-square block"
+             title="${img.label_name}" alt="${img.label_name}">
+        <p class="text-center text-xs text-gray-500 py-0.5 leading-tight px-1 truncate">${img.label_name}</p>
+      `;
+      cell.addEventListener('click', () => selectImage(img.index));
+      gallery.appendChild(cell);
+    }
+  }
+
+  async function shiftGallery(delta) {
+    const next = Math.max(0, galleryStart + delta);
+    if (next === galleryStart) return;
+    galleryStart = next;
+    await loadGallery();
+  }
+
+  function selectImage(index) {
+    selectedImageIndex = index;
+    userDragged = false;
+
+    // Close any in-progress stream
+    if (activeEventSource) { activeEventSource.close(); activeEventSource = null; }
+
+    // Clear previous results
+    frames = [];
+    document.getElementById('results_panel').classList.add('hidden');
+    document.getElementById('status_bar').classList.add('hidden');
+    document.getElementById('error_bar').classList.add('hidden');
+    const slider = document.getElementById('eps_slider');
+    slider.disabled = true; slider.max = 0; slider.value = 0;
+
+    updateRunButton();
+
+    // Update highlight
+    const gallery = document.getElementById('gallery');
+    for (const cell of gallery.children) {
+      const i = parseInt(cell.dataset.index);
+      if (isNaN(i)) continue;
+      if (i === index) {
+        cell.classList.remove('border-transparent', 'hover:border-indigo-300');
+        cell.classList.add('border-indigo-500', 'shadow-md');
+      } else {
+        cell.classList.remove('border-indigo-500', 'shadow-md');
+        cell.classList.add('border-transparent', 'hover:border-indigo-300');
+      }
+    }
+  }
+
+  function updateRunButton() {
+    const btn = document.getElementById('run_btn');
+    const hint = document.getElementById('run_hint');
+    if (selectedImageIndex !== null) {
+      btn.disabled = false;
+      hint.textContent = `Image #${selectedImageIndex} selected`;
+    } else {
+      btn.disabled = true;
+      hint.textContent = 'Select an image to start';
+    }
+  }
+
+  // ── Attack / streaming ────────────────────────────────────────────────────
+
+  async function startVisualization() {
+    if (!selectedModel || selectedImageIndex === null) return;
+
+    frames = [];
+    userDragged = false;
+
+    const params = {
+      model_id:           selectedModel.id,
+      image_index:        selectedImageIndex,
+      perturbation_model: document.querySelector('input[name="norm"]:checked').value,
+      epsilon_max:        parseFloat(document.getElementById('epsilon_max').value),
+      epsilon_steps:      parseInt(document.getElementById('epsilon_steps').value),
+      num_steps:          parseInt(document.getElementById('num_steps').value),
+      step_size:          parseFloat(document.getElementById('step_size').value),
+    };
+
+    document.getElementById('run_btn').disabled = true;
+    document.getElementById('status_bar').classList.remove('hidden');
+    document.getElementById('error_bar').classList.add('hidden');
+    document.getElementById('results_panel').classList.add('hidden');
+    document.getElementById('progress_bar').className = 'h-1.5 rounded-full transition-all duration-300 bg-indigo-500';
+    document.getElementById('progress_bar').style.width = '0%';
+
+    // Reset slider
+    const slider = document.getElementById('eps_slider');
+    slider.disabled = true; slider.max = 0; slider.value = 0;
+    document.getElementById('eps_max_label').textContent = `max \u03b5 = ${params.epsilon_max.toFixed(3)}`;
+    document.getElementById('computing_bar').classList.add('hidden');
+
+    try {
+      const res = await fetch('/api/visualize', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params),
+      });
+      if (!res.ok) { const e = await res.json(); throw new Error(e.detail || JSON.stringify(e)); }
+      const { job_id } = await res.json();
+
+      if (activeEventSource) activeEventSource.close();
+      const es = new EventSource(`/api/stream/${job_id}`);
+      activeEventSource = es;
+      es.onmessage = (evt) => {
+        const data = JSON.parse(evt.data);
+        if (data.type === 'progress') {
+          setProgress(data.progress ?? null, data.message);
+        } else if (data.type === 'image') {
+          frames.push(data);
+          frames.sort((a, b) => a.epsilon - b.epsilon);
+
+          if (frames.length === 1) {
+            // First frame = clean image; show results panel and set original
+            document.getElementById('results_panel').classList.remove('hidden');
+            document.getElementById('orig_img').src = `data:image/png;base64,${data.image_b64}`;
+            document.getElementById('orig_label').textContent = `True: ${data.true_class}`;
+            document.getElementById('computing_bar').classList.remove('hidden');
+          }
+
+          // Update slider range
+          slider.max = frames.length - 1;
+          slider.disabled = false;
+          if (!userDragged) {
+            slider.value = frames.length - 1;
+            renderFrame(frames[frames.length - 1]);
+          }
+        } else if (data.type === 'done') {
+          setProgress(1, 'Attack complete');
+          document.getElementById('progress_bar').className = 'h-1.5 rounded-full transition-all duration-300 bg-emerald-500';
+          document.getElementById('run_btn').disabled = false;
+          document.getElementById('computing_bar').classList.add('hidden');
+          es.close(); activeEventSource = null;
+        } else if (data.type === 'error') {
+          showError(data.message + (data.traceback ? '\n\n' + data.traceback : ''));
+          document.getElementById('run_btn').disabled = false;
+          document.getElementById('computing_bar').classList.add('hidden');
+          es.close(); activeEventSource = null;
+        }
+      };
+      es.onerror = () => {
+        showError('Lost connection to server.');
+        document.getElementById('run_btn').disabled = false;
+        es.close(); activeEventSource = null;
+      };
+    } catch (err) {
+      showError(err.message);
+      document.getElementById('run_btn').disabled = false;
+    }
+  }
+
+  // ── Slider ────────────────────────────────────────────────────────────────
+
+  document.getElementById('eps_slider').addEventListener('mousedown', () => { userDragged = true; });
+
+  function onSlider(val) {
+    const frame = frames[parseInt(val)];
+    if (frame) renderFrame(frame);
+  }
+
+  function renderFrame(frame) {
+    // Perturbed image
+    document.getElementById('adv_img').src = `data:image/png;base64,${frame.image_b64}`;
+    document.getElementById('eps_val').textContent = frame.epsilon.toFixed(4);
+
+    const correct = frame.correct;
+    const advLabel = document.getElementById('adv_label');
+    advLabel.textContent = frame.predicted_class;
+    advLabel.className = `text-xs font-semibold mt-1.5 ${correct ? 'text-emerald-600' : 'text-red-500'}`;
+
+    document.getElementById('adv_border').style.borderColor = correct ? '#10b981' : '#ef4444';
+
+    // Badge
+    const badge = document.getElementById('pred_badge');
+    badge.className = `rounded-xl p-4 mb-5 ${correct ? 'bg-emerald-50' : 'bg-red-50'}`;
+    const predClass = document.getElementById('pred_class');
+    predClass.textContent = frame.predicted_class;
+    predClass.className = `text-2xl font-bold ${correct ? 'text-emerald-700' : 'text-red-600'}`;
+    document.getElementById('pred_conf').textContent = (frame.confidence * 100).toFixed(1) + '%';
+
+    const status = document.getElementById('pred_status');
+    if (frame.epsilon === 0) {
+      status.textContent = correct ? '\u2713 Correct prediction (clean image)' : '\u2717 Misclassified even without attack';
+      status.className = `mt-2 text-xs font-medium ${correct ? 'text-emerald-600' : 'text-red-500'}`;
+    } else {
+      status.textContent = correct ? `\u2713 Model robust at \u03b5 = ${frame.epsilon.toFixed(4)}` : `\u2717 Fooled at \u03b5 = ${frame.epsilon.toFixed(4)}`;
+      status.className = `mt-2 text-xs font-medium ${correct ? 'text-emerald-600' : 'text-red-500'}`;
+    }
+
+    // Probability bars
+    const classNames = frame.class_names || frame.probs.map((_, i) => String(i));
+    const indexed = frame.probs.map((p, i) => ({ p, i, name: classNames[i] }));
+
+    const barsDiv = document.getElementById('prob_bars');
+    barsDiv.innerHTML = '';
+    for (const { p, i, name } of indexed) {
+      const isTrue = i === frame.true_idx;
+      const isPred = i === frame.predicted_idx;
+      const barBg = isPred && isTrue ? '#10b981' : isPred ? '#ef4444' : isTrue ? '#f59e0b' : '#d1d5db';
+      const pct = (p * 100).toFixed(1);
+      const labelCls = isPred ? 'font-semibold text-gray-800' : 'text-gray-500';
+      const marker = isTrue && isPred ? ' \u2605' : isTrue ? ' (true)' : '';
+
+      const row = document.createElement('div');
+      row.className = 'flex items-center gap-2';
+      row.innerHTML = `
+        <span class="text-xs ${labelCls} truncate" style="width:88px">${name}${marker}</span>
+        <div class="flex-1 bg-gray-100 rounded-full overflow-hidden h-2">
+          <div class="h-2 rounded-full transition-all duration-200" style="width:${pct}%; background:${barBg};"></div>
+        </div>
+        <span class="text-xs tabular-nums text-gray-500 text-right" style="width:38px">${pct}%</span>
+      `;
+      barsDiv.appendChild(row);
+    }
+  }
+
+  // ── Utilities ─────────────────────────────────────────────────────────────
+
+  function setProgress(fraction, message) {
+    if (message) document.getElementById('status_msg').textContent = message;
+    if (fraction != null) {
+      const pct = Math.round(fraction * 100);
+      document.getElementById('progress_bar').style.width = pct + '%';
+      document.getElementById('status_pct').textContent = pct + '%';
+    }
+  }
+
+  function showError(msg) {
+    document.getElementById('status_bar').classList.add('hidden');
+    document.getElementById('error_bar').classList.remove('hidden');
+    document.getElementById('error_msg').textContent = msg;
+  }
+
+  init();
+</script>
+</body>
+</html>

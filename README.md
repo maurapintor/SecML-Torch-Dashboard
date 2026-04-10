@@ -1,9 +1,9 @@
 # SecML-Torch Dashboard
 
-A web-based dashboard for evaluating the adversarial robustness of PyTorch models. It runs PGD attacks across a range of perturbation magnitudes and plots the security evaluation curve (robust accuracy vs. ε) in real time.
+A web-based dashboard for evaluating the adversarial robustness of PyTorch models. It runs PGD attacks across a range of perturbation magnitudes and plots the security evaluation curve (robust accuracy vs. ε) in real time. A second **Visualizer** page lets you inspect how a single image is perturbed as ε increases.
 
 > [!WARNING]
-> Models are loaded via `torch.hub.load(..., trust_repo=True)`. Only point this tool at hub repos you trust.
+> Models loaded via `torch.hub.load(..., trust_repo=True)`. Only point this tool at hub repos you trust.
 
 ## Requirements
 
@@ -16,6 +16,8 @@ Install dependencies:
 pip install -r requirements.txt
 ```
 
+RobustBench is installed directly from GitHub; a `models/` directory is created automatically to cache its weights (excluded from version control).
+
 ## Running the server
 
 ```bash
@@ -24,26 +26,37 @@ python main.py
 
 Then open `http://localhost:8000` in your browser.
 
+## Pages
+
+| Page | URL | Description |
+|---|---|---|
+| **Evaluation** | `/` | Security evaluation curve (robust accuracy vs. ε) |
+| **Visualizer** | `/visualize` | Per-image perturbation viewer |
+
 ## Usage
 
 ### 1. Model
 
-The dashboard loads models via `torch.hub`. Fill in:
+Choose a pre-configured model from the dropdown. Available models:
 
-| Field | Description | Example |
+| Label | Source | Dataset |
 |---|---|---|
-| **Torch Hub Repo** | GitHub repo in `owner/repo` format | `chenyaofo/pytorch-cifar-models` |
-| **Model Name** | Entry point name registered in the hub | `cifar10_resnet20` |
-| **Extra kwargs** | JSON object passed to `torch.hub.load` | `{"pretrained": true}` |
+| CIFAR-10 · ResNet-20 | PyTorch Hub (`chenyaofo/pytorch-cifar-models`) | CIFAR-10 |
+| CIFAR-10 · ResNet-56 | PyTorch Hub (`chenyaofo/pytorch-cifar-models`) | CIFAR-10 |
+| CIFAR-10 · VGG-11 BN | PyTorch Hub (`chenyaofo/pytorch-cifar-models`) | CIFAR-10 |
+| CIFAR-10 · MobileNetV2-x0.5 | PyTorch Hub (`chenyaofo/pytorch-cifar-models`) | CIFAR-10 |
+| CIFAR-10 · ResNet-50 Linf — Wong 2020 | RobustBench | CIFAR-10 |
+| CIFAR-10 · ResNet-18 Linf — Rice 2020 | RobustBench | CIFAR-10 |
+| CIFAR-10 · WRN-28-10 Linf — Hendrycks 2019 | RobustBench | CIFAR-10 |
 
-Any model loadable with `torch.hub.load(repo, name, **kwargs)` is supported.
+RobustBench models are downloaded and cached in `./models/` on first use.
 
 ### 2. Dataset
 
+Dataset and normalization are fixed per model. Samples are taken from the test split, downloaded automatically to `./data/` on first use.
+
 | Field | Description |
 |---|---|
-| **Dataset** | `CIFAR-10` or `MNIST`. Downloaded automatically on first use to `./data/`. |
-| **Apply normalization** | Applies the standard mean/std normalization for the selected dataset inside the model wrapper, keeping inputs in [0, 1] for the attack. |
 | **Test Samples** | Number of test-set samples to evaluate (starting from index 0). |
 
 ### 3. Attack — PGD
@@ -66,9 +79,27 @@ The evaluation is cumulative: once a sample is successfully attacked at ε_i, it
 
 Click **Download PDF** after an evaluation completes. The PDF includes the configuration, clean accuracy, the security evaluation curve, and a table of (ε, accuracy, drop) values.
 
+### 6. Visualizer
+
+Open `/visualize`. Select a model, an image from the gallery, and attack parameters, then click **Run**. The tool streams perturbed versions of the image at each ε value so you can see how the perturbation evolves and when the model is fooled.
+
 ## API
 
-The server exposes a small REST + SSE API usable without the UI.
+The server exposes a REST + SSE API usable without the UI.
+
+### `GET /api/models`
+
+Returns the list of pre-configured model descriptors.
+
+### `GET /api/datasets`
+
+Returns the list of supported dataset names.
+
+### `GET /api/images/{dataset}`
+
+Returns a page of test-set images as base64-encoded PNG thumbnails.
+
+Query params: `count` (default 16), `start` (default 0).
 
 ### `POST /api/evaluate`
 
@@ -76,10 +107,7 @@ Start an evaluation job. Returns a `job_id`.
 
 ```json
 {
-  "hub_repo": "chenyaofo/pytorch-cifar-models",
-  "model_name": "cifar10_resnet20",
-  "model_kwargs": {"pretrained": true},
-  "dataset": "cifar10",
+  "model_id": "cifar10_resnet20",
   "num_samples": 100,
   "perturbation_model": "linf",
   "epsilon_min": 0.0,
@@ -87,14 +115,13 @@ Start an evaluation job. Returns a `job_id`.
   "epsilon_steps": 10,
   "num_steps": 20,
   "step_size": 0.003,
-  "normalize": true,
   "backend": "native"
 }
 ```
 
 ### `GET /api/stream/{job_id}`
 
-Server-Sent Events stream. Each event is a JSON object with a `type` field:
+Server-Sent Events stream for an evaluation job. Each event is a JSON object with a `type` field:
 
 | type | Fields | Description |
 |---|---|---|
@@ -104,6 +131,30 @@ Server-Sent Events stream. Each event is a JSON object with a `type` field:
 | `done` | `message` | Evaluation finished |
 | `error` | `message`, `traceback` | Unhandled exception |
 
-### `GET /api/datasets`
+### `POST /api/visualize`
 
-Returns the list of supported dataset names.
+Start a visualization job. Returns a `job_id`.
+
+```json
+{
+  "model_id": "cifar10_resnet20",
+  "image_index": 0,
+  "perturbation_model": "linf",
+  "epsilon_max": 0.03,
+  "epsilon_steps": 10,
+  "num_steps": 20,
+  "step_size": 0.003,
+  "backend": "native"
+}
+```
+
+### `GET /api/visualize/stream/{job_id}`
+
+Server-Sent Events stream for a visualization job. Each event is a JSON object with a `type` field:
+
+| type | Fields | Description |
+|---|---|---|
+| `progress` | `message` | Status update |
+| `image` | `epsilon`, `image_b64`, `predicted_class`, `predicted_idx`, `true_class`, `true_idx`, `fooled` | Perturbed image at one ε |
+| `done` | `message` | Visualization finished |
+| `error` | `message`, `traceback` | Unhandled exception |

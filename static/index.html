@@ -20,12 +20,15 @@
       color: #111827; outline: none; transition: border-color 0.15s;
     }
     .input:focus { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,0.1); }
-    select.input { background-image: none; }
     .section-label {
       font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.06em;
       text-transform: uppercase; color: #9ca3af; margin-bottom: 0.75rem;
     }
     .card { background: white; border: 1px solid #f3f4f6; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+    .nav-link { padding: 0.375rem 0.75rem; font-size: 0.875rem; border-radius: 0.5rem; transition: all 0.15s; }
+    .nav-link-active { color: #4f46e5; background: #eef2ff; font-weight: 500; }
+    .nav-link-idle { color: #6b7280; }
+    .nav-link-idle:hover { color: #111827; background: #f3f4f6; }
   </style>
 </head>
 <body class="bg-slate-50 text-gray-800 h-screen flex flex-col overflow-hidden">
@@ -37,36 +40,30 @@
         <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
       </svg>
     </div>
-    <div>
-      <span class="font-semibold text-gray-900 text-sm">SecML-Torch</span>
-      <span class="text-gray-400 text-sm ml-2">Adversarial Robustness Evaluation</span>
-    </div>
+    <span class="font-semibold text-gray-900 text-sm">SecML-Torch</span>
+    <nav class="flex gap-1 ml-4">
+      <a href="/" class="nav-link nav-link-active">Evaluation</a>
+      <a href="/visualize" class="nav-link nav-link-idle">Visualizer</a>
+    </nav>
   </header>
 
   <!-- Body -->
   <div class="flex flex-1 overflow-hidden">
 
     <!-- Sidebar -->
-    <aside class="w-68 bg-white border-r border-gray-200 flex flex-col overflow-y-auto shrink-0" style="width:268px">
+    <aside class="bg-white border-r border-gray-200 flex flex-col overflow-y-auto shrink-0" style="width:268px">
       <div class="p-5 space-y-5 flex-1">
 
         <!-- Model -->
         <div>
           <p class="section-label">Model</p>
-          <div class="space-y-3">
-            <div class="field">
-              <label>Torch Hub Repo</label>
-              <input id="hub_repo" type="text" class="input" value="chenyaofo/pytorch-cifar-models" placeholder="e.g. pytorch/vision">
-            </div>
-            <div class="field">
-              <label>Model Name</label>
-              <input id="model_name" type="text" class="input" value="cifar10_resnet20" placeholder="e.g. resnet18">
-            </div>
-            <div class="field">
-              <label>Extra kwargs <span class="font-normal text-gray-400">(JSON)</span></label>
-              <input id="model_kwargs" type="text" class="input font-mono text-xs" value='{"pretrained": true}' placeholder='{"pretrained": true}'>
-            </div>
+          <div class="field">
+            <label>Select Model</label>
+            <select id="model_select" class="input" onchange="onModelChange()">
+              <option value="">Loading…</option>
+            </select>
           </div>
+          <p id="model_info" class="text-xs text-gray-400 mt-2 leading-relaxed"></p>
         </div>
 
         <hr class="border-gray-100">
@@ -75,20 +72,9 @@
         <div>
           <p class="section-label">Dataset</p>
           <div class="space-y-3">
-            <div class="field">
-              <label>Dataset</label>
-              <select id="dataset" class="input">
-                <option value="cifar10">CIFAR-10</option>
-                <option value="mnist">MNIST</option>
-              </select>
-            </div>
-            <div class="flex items-start gap-2">
-              <input id="normalize" type="checkbox" checked
-                class="mt-0.5 w-4 h-4 rounded accent-indigo-600 cursor-pointer shrink-0">
-              <div>
-                <span class="text-sm text-gray-700 cursor-pointer select-none" onclick="document.getElementById('normalize').click()">Apply normalization</span>
-                <p id="normalize_hint" class="text-xs text-gray-400 mt-0.5 font-mono leading-relaxed"></p>
-              </div>
+            <div>
+              <label class="text-xs font-medium text-gray-500">Dataset</label>
+              <p id="dataset_display" class="text-sm text-gray-700 mt-0.5 font-medium">—</p>
             </div>
             <div class="field">
               <label>Test Samples</label>
@@ -116,7 +102,7 @@
               <label>Perturbation Norm</label>
               <div class="flex gap-4 mt-1">
                 <label class="flex items-center gap-1.5 text-sm text-gray-700 cursor-pointer">
-                  <input type="radio" name="norm" value="linf" checked class="accent-indigo-600"> L∞
+                  <input type="radio" name="norm" value="linf" checked class="accent-indigo-600"> L&#x221e;
                 </label>
                 <label class="flex items-center gap-1.5 text-sm text-gray-700 cursor-pointer">
                   <input type="radio" name="norm" value="l2" class="accent-indigo-600"> L2
@@ -161,7 +147,7 @@
 
       <!-- Run button -->
       <div class="p-4 border-t border-gray-100 shrink-0">
-        <button id="run_btn" onclick="startEvaluation()"
+        <button id="run_btn" onclick="startEvaluation()" disabled
           class="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white font-semibold py-2.5 rounded-lg transition-colors text-sm">
           Run Evaluation
         </button>
@@ -209,9 +195,7 @@
       <div id="results_panel" class="hidden card p-5">
         <div class="flex items-center justify-between mb-4">
           <div class="flex items-center gap-6">
-            <div>
-              <p class="text-xs text-gray-400 font-medium uppercase tracking-wide">Results</p>
-            </div>
+            <p class="text-xs text-gray-400 font-medium uppercase tracking-wide">Results</p>
             <div id="clean_acc_row" class="hidden flex items-center gap-2">
               <span class="text-xs text-gray-400">Clean accuracy</span>
               <span id="clean_acc_val" class="text-sm font-semibold text-indigo-600"></span>
@@ -229,7 +213,7 @@
           <table class="w-full text-sm">
             <thead>
               <tr class="border-b border-gray-100 text-xs text-gray-400 font-medium">
-                <th class="text-left pb-2">ε</th>
+                <th class="text-left pb-2">&#x3b5;</th>
                 <th class="text-right pb-2">Accuracy</th>
                 <th class="text-right pb-2">Drop</th>
               </tr>
@@ -245,59 +229,49 @@
   let cleanAccuracy = null;
   let epsData = [];
   let accData = [];
+  let models = [];
+  let selectedModel = null;
 
   const CHART_LAYOUT = {
-    paper_bgcolor: 'rgba(0,0,0,0)',
-    plot_bgcolor: 'rgba(0,0,0,0)',
+    paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
     font: { color: '#6b7280', size: 12, family: 'Inter, system-ui, sans-serif' },
-    xaxis: {
-      title: { text: 'Perturbation ε', standoff: 10, font: { color: '#6b7280' } },
-      gridcolor: '#f3f4f6',
-      zerolinecolor: '#e5e7eb',
-      tickfont: { color: '#9ca3af' },
-      automargin: true,
-    },
-    yaxis: {
-      title: { text: 'Accuracy', standoff: 10, font: { color: '#6b7280' } },
-      gridcolor: '#f3f4f6',
-      zerolinecolor: '#e5e7eb',
-      rangemode: 'tozero',
-      tickformat: '.0%',
-      tickfont: { color: '#9ca3af' },
-      automargin: true,
-    },
-    legend: {
-      font: { color: '#6b7280' },
-      bgcolor: 'rgba(0,0,0,0)',
-      orientation: 'h',
-      y: -0.2,
-    },
+    xaxis: { title: { text: 'Perturbation \u03b5', standoff: 10, font: { color: '#6b7280' } }, gridcolor: '#f3f4f6', zerolinecolor: '#e5e7eb', tickfont: { color: '#9ca3af' }, automargin: true },
+    yaxis: { title: { text: 'Accuracy', standoff: 10, font: { color: '#6b7280' } }, gridcolor: '#f3f4f6', zerolinecolor: '#e5e7eb', rangemode: 'tozero', tickformat: '.0%', tickfont: { color: '#9ca3af' }, automargin: true },
+    legend: { font: { color: '#6b7280' }, bgcolor: 'rgba(0,0,0,0)', orientation: 'h', y: -0.2 },
     margin: { l: 55, r: 20, t: 10, b: 60 },
     hovermode: 'x unified',
     hoverlabel: { bgcolor: 'white', bordercolor: '#e5e7eb', font: { color: '#374151' } },
   };
-
   const CHART_CONFIG = { responsive: true, displayModeBar: false };
 
   function initChart() {
     const traces = [
-      {
-        x: [], y: [],
-        mode: 'lines+markers',
-        name: 'Robust Accuracy',
-        line: { color: '#6366f1', width: 2.5 },
-        marker: { color: '#6366f1', size: 6 },
-        hovertemplate: 'ε=%{x:.5f}  Acc=%{y:.1%}<extra></extra>',
-      },
-      {
-        x: [null, null], y: [null, null],
-        mode: 'lines',
-        name: 'Clean Accuracy',
-        line: { color: '#f59e0b', width: 1.5, dash: 'dot' },
-        hovertemplate: 'Clean=%{y:.1%}<extra></extra>',
-      },
+      { x: [], y: [], mode: 'lines+markers', name: 'Robust Accuracy', line: { color: '#6366f1', width: 2.5 }, marker: { color: '#6366f1', size: 6 }, hovertemplate: '\u03b5=%{x:.5f}  Acc=%{y:.1%}<extra></extra>' },
+      { x: [null, null], y: [null, null], mode: 'lines', name: 'Clean Accuracy', line: { color: '#f59e0b', width: 1.5, dash: 'dot' }, hovertemplate: 'Clean=%{y:.1%}<extra></extra>' },
     ];
     Plotly.newPlot('chart', traces, CHART_LAYOUT, CHART_CONFIG);
+  }
+
+  async function loadModels() {
+    const res = await fetch('/api/models');
+    models = await res.json();
+    const sel = document.getElementById('model_select');
+    sel.innerHTML = models.map(m =>
+      `<option value="${m.id}">${m.label}</option>`
+    ).join('');
+    onModelChange();
+  }
+
+  function onModelChange() {
+    const id = document.getElementById('model_select').value;
+    selectedModel = models.find(m => m.id === id) || null;
+    if (selectedModel) {
+      const dsLabel = selectedModel.dataset === 'cifar10' ? 'CIFAR-10' : selectedModel.dataset === 'mnist' ? 'MNIST' : selectedModel.dataset;
+      document.getElementById('dataset_display').textContent = dsLabel;
+      const src = selectedModel.source === 'robustbench' ? 'RobustBench' : 'PyTorch Hub';
+      document.getElementById('model_info').textContent = `Source: ${src}`;
+      document.getElementById('run_btn').disabled = false;
+    }
   }
 
   function setCleanAccLine(acc, epsMin, epsMax) {
@@ -322,22 +296,16 @@
       <td class="py-2 text-gray-500 tabular-nums">${eps.toFixed(4)}</td>
       <td class="py-2 text-right font-medium text-gray-800 tabular-nums">${(acc * 100).toFixed(1)}%</td>
       <td class="py-2 text-right tabular-nums ${dropCls}">
-        ${drop !== null ? '−' + (drop * 100).toFixed(1) + '%' : '—'}
+        ${drop !== null ? '\u2212' + (drop * 100).toFixed(1) + '%' : '\u2014'}
       </td>`;
     document.getElementById('results_tbody').appendChild(tr);
   }
 
   async function startEvaluation() {
-    let kwargsRaw = document.getElementById('model_kwargs').value.trim() || '{}';
-    let model_kwargs;
-    try { model_kwargs = JSON.parse(kwargsRaw); }
-    catch { alert('Model kwargs is not valid JSON.'); return; }
+    if (!selectedModel) return;
 
     const params = {
-      hub_repo:           document.getElementById('hub_repo').value.trim(),
-      model_name:         document.getElementById('model_name').value.trim(),
-      model_kwargs,
-      dataset:            document.getElementById('dataset').value,
+      model_id:           selectedModel.id,
       num_samples:        parseInt(document.getElementById('num_samples').value),
       perturbation_model: document.querySelector('input[name="norm"]:checked').value,
       epsilon_min:        parseFloat(document.getElementById('epsilon_min').value),
@@ -345,7 +313,6 @@
       epsilon_steps:      parseInt(document.getElementById('epsilon_steps').value),
       num_steps:          parseInt(document.getElementById('num_steps').value),
       step_size:          parseFloat(document.getElementById('step_size').value),
-      normalize:          document.getElementById('normalize').checked,
       backend:            document.getElementById('backend').value,
     };
 
@@ -358,14 +325,13 @@
     document.getElementById('results_tbody').innerHTML = '';
     document.getElementById('clean_acc_row').classList.add('hidden');
     document.getElementById('progress_bar').className = 'h-1.5 rounded-full transition-all duration-300 bg-indigo-500';
-    setProgress(0, 'Submitting…');
+    setProgress(0, 'Submitting\u2026');
     cleanAccuracy = null; epsData = []; accData = [];
     initChart();
 
     try {
       const res = await fetch('/api/evaluate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(params),
       });
       if (!res.ok) { const e = await res.json(); throw new Error(e.detail || JSON.stringify(e)); }
@@ -384,7 +350,7 @@
         } else if (data.type === 'result_point') {
           epsData.push(data.epsilon); accData.push(data.accuracy);
           addRobustPoint(data.epsilon, data.accuracy);
-          setProgress(data.progress, `PGD ε=${data.epsilon.toFixed(4)} [${data.index + 1}/${data.total}]`);
+          setProgress(data.progress, `PGD \u03b5=${data.epsilon.toFixed(4)} [${data.index + 1}/${data.total}]`);
           document.getElementById('results_panel').classList.remove('hidden');
           addTableRow(data.epsilon, data.accuracy);
         } else if (data.type === 'done') {
@@ -423,111 +389,58 @@
 
   async function downloadPDF() {
     const btn = document.getElementById('pdf_btn');
-    btn.disabled = true;
-    btn.textContent = 'Generating…';
+    btn.disabled = true; btn.textContent = 'Generating\u2026';
     try {
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
       const W = 210, margin = 15, contentW = W - 2 * margin;
       let y = 0;
-
-      // Header band
       doc.setFillColor(99, 102, 241);
       doc.rect(0, 0, W, 15, 'F');
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(11);
-      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(255, 255, 255); doc.setFontSize(11); doc.setFont('helvetica', 'bold');
       doc.text('SecML-Torch  Adversarial Robustness Report', margin, 10);
-      doc.setFontSize(8);
-      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8); doc.setFont('helvetica', 'normal');
       doc.text(new Date().toLocaleString(), W - margin, 10, { align: 'right' });
       y = 24;
-
-      // Config section
-      doc.setFontSize(8);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(100, 100, 100);
-      doc.text('CONFIGURATION', margin, y);
-      y += 3;
-
+      doc.setFontSize(8); doc.setFont('helvetica', 'bold'); doc.setTextColor(100, 100, 100);
+      doc.text('CONFIGURATION', margin, y); y += 3;
       const normVal = document.querySelector('input[name="norm"]:checked').value;
-      const normLabel = normVal === 'linf' ? 'Linf' : normVal === 'l2' ? 'L2' : 'L1';
-      const dsVal = document.getElementById('dataset').value;
+      const normLabel = normVal === 'linf' ? 'L\u221e' : normVal === 'l2' ? 'L2' : 'L1';
       const configRows = [
-        ['Hub Repo',          document.getElementById('hub_repo').value],
-        ['Model Name',        document.getElementById('model_name').value],
-        ['Extra kwargs',      document.getElementById('model_kwargs').value || '{}'],
-        ['Dataset',           dsVal === 'cifar10' ? 'CIFAR-10' : 'MNIST'],
-        ['Normalization',     document.getElementById('normalize').checked ? 'Yes' : 'No'],
-        ['Test Samples',      document.getElementById('num_samples').value],
-        ['Attack Backend',    document.getElementById('backend').value],
+        ['Model', selectedModel ? selectedModel.label : ''],
+        ['Source', selectedModel ? (selectedModel.source === 'robustbench' ? 'RobustBench' : 'PyTorch Hub') : ''],
+        ['Dataset', selectedModel ? selectedModel.dataset.toUpperCase() : ''],
+        ['Test Samples', document.getElementById('num_samples').value],
+        ['Attack Backend', document.getElementById('backend').value],
         ['Perturbation Norm', normLabel],
-        ['Epsilon Min',       document.getElementById('epsilon_min').value],
-        ['Epsilon Max',       document.getElementById('epsilon_max').value],
-        ['Epsilon Steps',     document.getElementById('epsilon_steps').value],
-        ['PGD Steps',         document.getElementById('num_steps').value],
-        ['Step Size',         document.getElementById('step_size').value],
+        ['Epsilon Min', document.getElementById('epsilon_min').value],
+        ['Epsilon Max', document.getElementById('epsilon_max').value],
+        ['Epsilon Steps', document.getElementById('epsilon_steps').value],
+        ['PGD Steps', document.getElementById('num_steps').value],
+        ['Step Size', document.getElementById('step_size').value],
       ];
-      doc.autoTable({
-        startY: y,
-        head: [['Parameter', 'Value']],
-        body: configRows,
-        margin: { left: margin, right: margin },
-        styles: { fontSize: 8, cellPadding: 2 },
-        headStyles: { fillColor: [99, 102, 241], textColor: 255, fontStyle: 'bold' },
-        alternateRowStyles: { fillColor: [248, 248, 255] },
-        columnStyles: { 0: { fontStyle: 'bold', cellWidth: 48 } },
-        theme: 'striped',
-      });
+      doc.autoTable({ startY: y, head: [['Parameter', 'Value']], body: configRows, margin: { left: margin, right: margin }, styles: { fontSize: 8, cellPadding: 2 }, headStyles: { fillColor: [99, 102, 241], textColor: 255, fontStyle: 'bold' }, alternateRowStyles: { fillColor: [248, 248, 255] }, columnStyles: { 0: { fontStyle: 'bold', cellWidth: 48 } }, theme: 'striped' });
       y = doc.lastAutoTable.finalY + 6;
-
-      // Clean accuracy
       if (cleanAccuracy !== null) {
-        doc.setFontSize(9);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(30, 30, 30);
-        doc.text('Clean Accuracy:', margin, y);
-        doc.setTextColor(99, 102, 241);
-        doc.text((cleanAccuracy * 100).toFixed(1) + '%', margin + 35, y);
-        y += 8;
+        doc.setFontSize(9); doc.setFont('helvetica', 'bold'); doc.setTextColor(30, 30, 30);
+        doc.text('Clean Accuracy:', margin, y); doc.setTextColor(99, 102, 241);
+        doc.text((cleanAccuracy * 100).toFixed(1) + '%', margin + 35, y); y += 8;
       }
-
-      // Chart image
       const chartImg = await Plotly.toImage('chart', { format: 'png', width: 900, height: 420, scale: 2 });
       const imgH = contentW * 420 / 900;
-      doc.addImage(chartImg, 'PNG', margin, y, contentW, imgH);
-      y += imgH + 6;
-
-      // Results table — add new page if little space left
+      doc.addImage(chartImg, 'PNG', margin, y, contentW, imgH); y += imgH + 6;
       if (epsData.length > 0) {
         if (y > 240) { doc.addPage(); y = 20; }
-        doc.setFontSize(8);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(100, 100, 100);
-        doc.text('RESULTS', margin, y);
-        y += 3;
+        doc.setFontSize(8); doc.setFont('helvetica', 'bold'); doc.setTextColor(100, 100, 100);
+        doc.text('RESULTS', margin, y); y += 3;
         const rows = epsData.map((eps, i) => {
           const acc = accData[i];
           const drop = cleanAccuracy !== null ? cleanAccuracy - acc : null;
-          return [
-            eps.toFixed(4),
-            (acc * 100).toFixed(1) + '%',
-            drop !== null ? '-' + (drop * 100).toFixed(1) + '%' : '-',
-          ];
+          return [eps.toFixed(4), (acc * 100).toFixed(1) + '%', drop !== null ? '-' + (drop * 100).toFixed(1) + '%' : '-'];
         });
-        doc.autoTable({
-          startY: y,
-          head: [['eps', 'Accuracy', 'Drop']],
-          body: rows,
-          margin: { left: margin, right: margin },
-          styles: { fontSize: 8, cellPadding: 2 },
-          headStyles: { fillColor: [99, 102, 241], textColor: 255, fontStyle: 'bold' },
-          alternateRowStyles: { fillColor: [248, 248, 255] },
-          theme: 'striped',
-        });
+        doc.autoTable({ startY: y, head: [['eps', 'Accuracy', 'Drop']], body: rows, margin: { left: margin, right: margin }, styles: { fontSize: 8, cellPadding: 2 }, headStyles: { fillColor: [99, 102, 241], textColor: 255, fontStyle: 'bold' }, alternateRowStyles: { fillColor: [248, 248, 255] }, theme: 'striped' });
       }
-
-      const slug = document.getElementById('model_name').value.replace(/[^a-zA-Z0-9_-]/g, '_');
+      const slug = (selectedModel ? selectedModel.id : 'model').replace(/[^a-zA-Z0-9_-]/g, '_');
       doc.save(`secml_report_${slug}_${new Date().toISOString().slice(0, 10)}.pdf`);
     } finally {
       btn.disabled = false;
@@ -535,19 +448,7 @@
     }
   }
 
-  const NORMALIZE_HINTS = {
-    cifar10: 'mean=(0.491, 0.482, 0.447)\nstd=(0.202, 0.199, 0.201)',
-    mnist:   'mean=(0.131,)  std=(0.308,)',
-  };
-  function updateNormalizeHint() {
-    const ds = document.getElementById('dataset').value;
-    document.getElementById('normalize_hint').textContent =
-      document.getElementById('normalize').checked ? (NORMALIZE_HINTS[ds] ?? '') : '';
-  }
-  document.getElementById('dataset').addEventListener('change', updateNormalizeHint);
-  document.getElementById('normalize').addEventListener('change', updateNormalizeHint);
-  updateNormalizeHint();
-
+  loadModels();
   initChart();
 </script>
 </body>

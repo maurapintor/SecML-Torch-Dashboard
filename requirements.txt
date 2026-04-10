@@ -5,3 +5,5 @@ torchvision
 secml-torch[foolbox,adv_lib]
 numpy
 foolbox
+git+https://github.com/RobustBench/robustbench.git
+Pillow

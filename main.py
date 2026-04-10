@@ -3,7 +3,7 @@ import json
 import queue
 import threading
 import uuid
-from typing import Any, Dict, List, Optional
+from typing import Dict, List
 
 import numpy as np
 from fastapi import FastAPI, HTTPException
@@ -11,7 +11,14 @@ from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, field_validator
 
-from evaluator import DATASETS, run_evaluation
+from evaluator import (
+    DATASETS,
+    MODEL_BY_ID,
+    PRECONFIGURED_MODELS,
+    get_sample_images,
+    run_evaluation,
+    run_visualization,
+)
 
 app = FastAPI(title="SecML-Torch Dashboard")
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -21,10 +28,7 @@ jobs: Dict[str, Dict] = {}
 
 
 class EvalParams(BaseModel):
-    hub_repo: str
-    model_name: str
-    model_kwargs: Optional[Dict[str, Any]] = {}
-    dataset: str = "cifar10"
+    model_id: str
     num_samples: int = 20
     perturbation_model: str = "linf"
     epsilon_min: float = 0.0
@@ -32,21 +36,20 @@ class EvalParams(BaseModel):
     epsilon_steps: int = 10
     num_steps: int = 20
     step_size: float = 0.01
-    normalize: bool = False
     backend: str = "native"
+
+    @field_validator("model_id")
+    @classmethod
+    def validate_model_id(cls, v: str) -> str:
+        if v not in MODEL_BY_ID:
+            raise ValueError(f"Unknown model_id: {v!r}")
+        return v
 
     @field_validator("backend")
     @classmethod
     def validate_backend(cls, v: str) -> str:
         if v not in ("native", "foolbox", "advlib"):
             raise ValueError("backend must be 'native', 'foolbox', or 'advlib'")
-        return v
-
-    @field_validator("dataset")
-    @classmethod
-    def validate_dataset(cls, v: str) -> str:
-        if v not in DATASETS:
-            raise ValueError(f"dataset must be one of {list(DATASETS.keys())}")
         return v
 
     @field_validator("perturbation_model")
@@ -64,15 +67,59 @@ class EvalParams(BaseModel):
         return v
 
 
+class VisualizeParams(BaseModel):
+    model_id: str
+    image_index: int = 0
+    perturbation_model: str = "linf"
+    epsilon_max: float = 0.1
+    epsilon_steps: int = 10
+    num_steps: int = 20
+    step_size: float = 0.01
+
+    @field_validator("model_id")
+    @classmethod
+    def validate_model_id(cls, v: str) -> str:
+        if v not in MODEL_BY_ID:
+            raise ValueError(f"Unknown model_id: {v!r}")
+        return v
+
+    @field_validator("perturbation_model")
+    @classmethod
+    def validate_norm(cls, v: str) -> str:
+        if v not in ("l1", "l2", "linf"):
+            raise ValueError("perturbation_model must be 'l1', 'l2', or 'linf'")
+        return v
+
+
 @app.get("/", response_class=HTMLResponse)
 async def serve_index() -> str:
     with open("static/index.html") as f:
         return f.read()
 
 
+@app.get("/visualize", response_class=HTMLResponse)
+async def serve_visualize() -> str:
+    with open("static/visualize.html") as f:
+        return f.read()
+
+
+@app.get("/api/models")
+async def list_models() -> List[Dict]:
+    return PRECONFIGURED_MODELS
+
+
 @app.get("/api/datasets")
 async def list_datasets() -> List[str]:
     return list(DATASETS.keys())
+
+
+@app.get("/api/sample-images")
+async def sample_images(
+    dataset: str = "cifar10", count: int = 16, start: int = 0
+) -> List[Dict]:
+    if dataset not in DATASETS:
+        raise HTTPException(400, f"Unknown dataset: {dataset!r}")
+    return get_sample_images(dataset, count=count, start_index=start)
 
 
 @app.post("/api/evaluate")
@@ -85,20 +132,34 @@ async def start_evaluation(params: EvalParams) -> Dict[str, str]:
     jobs[job_id] = {"queue": q, "status": "running"}
 
     config = {
-        "hub_repo": params.hub_repo,
-        "model_name": params.model_name,
-        "model_kwargs": params.model_kwargs or {},
-        "dataset": params.dataset,
+        "model_id": params.model_id,
         "num_samples": params.num_samples,
         "perturbation_model": params.perturbation_model,
         "epsilon_values": epsilon_values,
         "num_steps": params.num_steps,
         "step_size": params.step_size,
-        "normalize": params.normalize,
         "backend": params.backend,
     }
-    thread = threading.Thread(target=run_evaluation, args=(config, q), daemon=True)
-    thread.start()
+    threading.Thread(target=run_evaluation, args=(config, q), daemon=True).start()
+    return {"job_id": job_id}
+
+
+@app.post("/api/visualize")
+async def start_visualization(params: VisualizeParams) -> Dict[str, str]:
+    job_id = str(uuid.uuid4())
+    q: queue.Queue = queue.Queue()
+    jobs[job_id] = {"queue": q, "status": "running"}
+
+    config = {
+        "model_id": params.model_id,
+        "image_index": params.image_index,
+        "perturbation_model": params.perturbation_model,
+        "epsilon_max": params.epsilon_max,
+        "epsilon_steps": params.epsilon_steps,
+        "num_steps": params.num_steps,
+        "step_size": params.step_size,
+    }
+    threading.Thread(target=run_visualization, args=(config, q), daemon=True).start()
     return {"job_id": job_id}
 
 
