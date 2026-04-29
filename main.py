@@ -30,6 +30,7 @@ jobs: Dict[str, Dict] = {}
 class EvalParams(BaseModel):
     model_id: str
     num_samples: int = 20
+    sample_indices: List[int] | None = None
     perturbation_model: str = "linf"
     epsilon_min: float = 0.0
     epsilon_max: float = 0.05
@@ -66,6 +67,17 @@ class EvalParams(BaseModel):
             raise ValueError("epsilon_steps must be >= 2")
         return v
 
+    @field_validator("sample_indices")
+    @classmethod
+    def validate_sample_indices(cls, v: List[int] | None) -> List[int] | None:
+        if v is None:
+            return v
+        if len(v) == 0:
+            raise ValueError("sample_indices cannot be empty")
+        if any(i < 0 for i in v):
+            raise ValueError("sample_indices must contain non-negative integers")
+        return v
+
 
 class VisualizeParams(BaseModel):
     model_id: str
@@ -92,6 +104,12 @@ class VisualizeParams(BaseModel):
 
 
 @app.get("/", response_class=HTMLResponse)
+async def serve_home() -> str:
+    with open("static/visualize.html") as f:
+        return f.read()
+
+
+@app.get("/curve", response_class=HTMLResponse)
 async def serve_index() -> str:
     with open("static/index.html") as f:
         return f.read()
@@ -134,6 +152,7 @@ async def start_evaluation(params: EvalParams) -> Dict[str, str]:
     config = {
         "model_id": params.model_id,
         "num_samples": params.num_samples,
+        "sample_indices": params.sample_indices,
         "perturbation_model": params.perturbation_model,
         "epsilon_values": epsilon_values,
         "num_steps": params.num_steps,

@@ -198,6 +198,7 @@ def run_evaluation(config: dict, q: queue.Queue) -> None:
         model_config = MODEL_BY_ID[config["model_id"]]
         dataset_name = model_config["dataset"]
         num_samples = config["num_samples"]
+        sample_indices = config.get("sample_indices")
         perturbation_model = config["perturbation_model"]
         epsilon_values = config["epsilon_values"]
         num_steps = config["num_steps"]
@@ -214,7 +215,14 @@ def run_evaluation(config: dict, q: queue.Queue) -> None:
             root="./data", train=False, download=True,
             transform=transforms.ToTensor(),
         )
-        dataset_indices = list(range(min(num_samples, len(test_dataset))))
+        if sample_indices:
+            dataset_indices = sorted({
+                int(i) for i in sample_indices if 0 <= int(i) < len(test_dataset)
+            })
+            if not dataset_indices:
+                raise ValueError("No valid sample indices were provided for evaluation")
+        else:
+            dataset_indices = list(range(min(num_samples, len(test_dataset))))
         num_samples = len(dataset_indices)
         test_loader = DataLoader(
             Subset(test_dataset, dataset_indices), batch_size=num_samples, shuffle=False
