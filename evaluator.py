@@ -49,7 +49,7 @@ PRECONFIGURED_MODELS = [
         "model_name": "cifar10_resnet20",
         "model_kwargs": {"pretrained": True},
         "dataset": "cifar10",
-        "normalize": False,
+        "normalize": True,
     },
     {
         "id": "cifar10_resnet56",
@@ -59,7 +59,7 @@ PRECONFIGURED_MODELS = [
         "model_name": "cifar10_resnet56",
         "model_kwargs": {"pretrained": True},
         "dataset": "cifar10",
-        "normalize": False,
+        "normalize": True,
     },
     {
         "id": "cifar10_vgg11_bn",
@@ -69,7 +69,7 @@ PRECONFIGURED_MODELS = [
         "model_name": "cifar10_vgg11_bn",
         "model_kwargs": {"pretrained": True},
         "dataset": "cifar10",
-        "normalize": False,
+        "normalize": True,
     },
     {
         "id": "cifar10_mobilenetv2",
@@ -79,7 +79,7 @@ PRECONFIGURED_MODELS = [
         "model_name": "cifar10_mobilenetv2_x0_5",
         "model_kwargs": {"pretrained": True},
         "dataset": "cifar10",
-        "normalize": False,
+        "normalize": True,
     },
     # ── RobustBench ──────────────────────────────────────────────────────────
     {
